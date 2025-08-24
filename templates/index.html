@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProPlanner - Frontend</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide-react@0.292.0/dist/umd/lucide-react.min.js"></script>
+    <script src="https://unpkg.com/flowbite@1.8.0/dist/flowbite.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* A little custom CSS for the conic-gradient pie chart */
+        .pie-chart {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background-image: conic-gradient(
+                #34D399 0% 40%,      /* Completed - Green */
+                #60A5FA 40% 75%,     /* In Progress - Blue */
+                #FBBF24 75% 90%,     /* On Hold - Yellow */
+                #F87171 90% 100%    /* Not Started - Red */
+            );
+        }
+        .nav-link.active {
+        background-color: #EEEEEE;
+        color: #0F0E0E;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+
+
+<body class="bg-gray-100 font-sans text-gray-800">
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50" role="alert">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+                <div class="toast px-4 py-3 rounded-lg shadow-lg text-white 
+                            {% if category == 'success' %} bg-green-600
+                            {% elif category == 'error' %} bg-red-600
+                            {% else %} bg-gray-800 {% endif %}">
+                {{ message }}
+                </div>
+            {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+        
+
+    <div class="flex flex-col h-screen bg-gray-100   md:flex-row min-h-screen">
+        <!-- Sidebar Navigation -->
+        <!-- Top Navbar with Hamburger (only on mobile) -->
+        <header class="bg-white border-b border-gray-200 flex items-center justify-between p-4 md:hidden">
+            <h1 class="text-xl font-bold text-indigo-600">ProPlanner</h1>
+            <button id="hamburger" class="text-gray-700 focus:outline-none">
+                <!-- Hamburger Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+            </button>
+        </header>
+
+        <!-- Sidebar -->
+        <nav id="sidebar"
+            class="bg-[#0F0E0E] md:w-64 p-4 md:p-6 border-b md:border-r border-[#541212] flex-shrink-0 fixed md:static top-0 left-0 h-full w-64 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-50">
+        
+            <div class="flex items-center mb-8 text-[#EEEEEE]">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="text-[#EEEEEE]">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <circle cx="12" cy="12" r="6"></circle>
+                    <circle cx="12" cy="12" r="2"></circle>
+                </svg>
+                <h1 class="md:inline text-2xl font-bold ml-2">ProPlanner</h1>
+            </div>
+
+            <ul class="space-y-2">
+                <li>
+                    <a href="/"
+                        class="nav-link w-full flex items-center py-3 px-4 rounded-lg text-[#EEEEEE] hover:border-2 hover:border-[#EEEEEE]">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect width="7" height="9" x="3" y="3" rx="1"></rect>
+                            <rect width="7" height="5" x="14" y="3" rx="1"></rect>
+                            <rect width="7" height="9" x="14" y="12" rx="1"></rect>
+                            <rect width="7" height="5" x="3" y="16" rx="1"></rect>
+                        </svg>
+                        <span class="md:inline ml-3 font-medium">Dashboard</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/projects"
+                        class="nav-link w-full flex items-center py-3 px-4 rounded-lg text-[#EEEEEE] hover:border-2 hover:border-[#EEEEEE]">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path>
+                            <path d="M2 10h20"></path>
+                        </svg>
+                        <span class="md:inline ml-3 font-medium">Projects</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/task"
+                        class="nav-link w-full flex items-center py-3 px-4 rounded-lg text-[#EEEEEE] hover:border-2 hover:border-[#EEEEEE]">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="8" x2="21" y1="6" y2="6"></line>
+                            <line x1="8" x2="21" y1="12" y2="12"></line>
+                            <line x1="8" x2="21" y1="18" y2="18"></line>
+                            <line x1="3" x2="3.01" y1="6" y2="6"></line>
+                            <line x1="3" x2="3.01" y1="12" y2="12"></line>
+                            <line x1="3" x2="3.01" y1="18" y2="18"></line>
+                        </svg>
+                        <span class="md:inline ml-3 font-medium">Tasks</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/income"
+                        class="nav-link w-full flex items-center py-3 px-4 rounded-lg text-[#EEEEEE] hover:border-2 hover:border-[#EEEEEE]">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" x2="12" y1="2" y2="22"></line>
+                            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                        <span class="md:inline ml-3 font-medium">Income</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/vision"
+                        class="nav-link w-full flex items-center py-3 px-4 rounded-lg text-[#EEEEEE] hover:border-2 hover:border-[#EEEEEE]">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <circle cx="12" cy="12" r="6"></circle>
+                            <circle cx="12" cy="12" r="2"></circle>
+                        </svg>
+                        <span class="md:inline ml-3 font-medium">Vision</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Overlay for mobile -->
+        <div id="overlay" class="fixed inset-0 bg-black bg-opacity-50 hidden md:hidden z-40"></div>
+
+        <script>
+            const hamburger = document.getElementById("hamburger");
+            const sidebar = document.getElementById("sidebar");
+            const overlay = document.getElementById("overlay");
+
+            hamburger.addEventListener("click", () => {
+                sidebar.classList.toggle("-translate-x-full");
+                overlay.classList.toggle("hidden");
+            });
+
+            overlay.addEventListener("click", () => {
+                sidebar.classList.add("-translate-x-full");
+                overlay.classList.add("hidden");
+            });
+        </script>
+
+        <!-- Main Content -->
+        <main class="bg-[#EEEEEE] flex-1 p-4 md:p-8 overflow-auto">
+            {% block body %}
+            {% endblock %}
+        </main>
+    </div>
+</body>
+
+<script>
+  const links = document.querySelectorAll(".nav-link");
+    const currentPath = window.location.pathname;
+
+    links.forEach(link => {
+        if (link.getAttribute("href") === currentPath) {
+            link.classList.add("active");
+        }
+    })
+
+    
+    // Auto-hide toast notifications after 3 seconds
+    setTimeout(() => {
+        const toasts = document.querySelectorAll('.toast');
+        toasts.forEach(toast => {
+            toast.classList.add('opacity-0');
+            setTimeout(() => toast.remove(), 500); // Remove from DOM after fade out
+        });
+    }, 3000);
+
+</script>
+
+
+</body>
+</html>
