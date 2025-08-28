@@ -1,6 +1,10 @@
 from flask import Flask, render_template,request, redirect, url_for,flash
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
+from flask_migrate import Migrate
+from datetime import datetime, date
+from sqlalchemy import func,extract
+from dateutil.relativedelta import relativedelta
 
 
 app = Flask(__name__)
@@ -17,6 +21,25 @@ app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///project.db"
 db = SQLAlchemy(model_class=Base)
 # Initialise the app with the extension
 db.init_app(app)
+migrate = Migrate(app, db)
+
+today = datetime.now().date()     # get todays date
+# get the monthly income percentage change
+def get_percentage_monthly_income(last_month, this_month):
+    if last_month > 0:
+        percent_change = ((this_month - last_month) / last_month) * 100
+    else:
+        percent_change = 0   # avoid divide by zero
+    return round(percent_change, 2)
+
+
+# First day of this month
+first_day_this_month = today.replace(day=1)
+
+# First day of last month
+first_day_last_month = first_day_this_month - relativedelta(months=1)
+
+
 
 ##CREATE TABLE
 # ------------------ MODELS ------------------
@@ -30,6 +53,7 @@ class Project(db.Model):
     price = db.Column(db.Integer, nullable=False)
     deadline = db.Column(db.String(20), nullable=True)
     tasks = db.relationship("Task", back_populates="project", cascade="all, delete")
+    income = db.relationship("Income", back_populates="project", cascade="all, delete")
 
 class Task(db.Model):
     __tablename__ = "tasks"
@@ -41,12 +65,41 @@ class Task(db.Model):
     description = db.Column(db.Text)
     project = db.relationship("Project", back_populates="tasks")
 
+class Income(db.Model):
+    __tablename__ = "income"
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey("projects.id"), name="fk_income_project_id")
+    amount = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(50), default="Unpaid")
+    date = db.Column(db.String, default=str(date.today()))
+    due_date = db.Column(db.String(50), nullable=True)
+    project = db.relationship("Project", back_populates="income")
+    
 with app.app_context():
     db.create_all()
 
 
 # ------------------ ROUTES ------------------
+from sqlalchemy import func
+from datetime import datetime
 
+def monthly_payments(date, amount, status):
+    monthly = (
+        db.session.query(
+            func.strftime("%Y-%m", date).label("month"),  # SQLite
+            func.sum(amount).label("total")
+        )
+        .filter(status.in_(["paid", "partially paid"]))
+        .group_by("month")
+        .order_by("month")
+        .all()
+    )
+
+    results = [
+        {"month": datetime.strptime(m, "%Y-%m").strftime("%B %Y"), "total": total or 0}
+        for m, total in monthly
+    ]
+    return results
 
 
 
@@ -126,7 +179,6 @@ def task():
     
     if request.method == "POST":
         task_name = request.form.get("task_name")
-
         status = request.form.get("status")
         project = request.form.get("project")
         deadline = request.form.get("deadline")
@@ -184,9 +236,98 @@ def delete_task(task_id):
     flash("Task deleted successfully!", "danger")
     return redirect(url_for("task"))
 # ==================================================================
-@app.route("/income")
+@app.route("/income", methods=["GET","POST"])
 def income():
-    return render_template("income.html")
+    if request.method == "POST":
+        project = request.form.get("project")
+        amount = request.form.get("amount")
+        status = request.form.get("status")
+        due_date = request.form.get("due_date")
+        
+        new_income = Income(
+            amount=amount,
+            status=status,
+            project_id=project,
+            date=today,
+            due_date=due_date
+        )
+        
+        db.session.add(new_income)
+        db.session.commit()
+        
+        flash("Income added successfully!", "success")
+        return redirect(url_for('income'))  
+    income = Income.query.all()
+    project = Project.query.all()
+     # Example values
+    
+    total_income = (
+        db.session.query(func.sum(Income.amount))
+        .filter(Income.status.in_(["paid", "partially paid"]))
+        .scalar()
+        or 0
+    )
+    this_month_income = (
+    db.session.query(func.sum(Income.amount))
+    .filter(
+        Income.date.like(f"{today.year}-{today.month:02}-%"),
+        Income.status.in_(["paid", "partially paid"]) 
+      
+    ).scalar()or 0)
+    # Last month income
+    last_month_income = (
+        db.session.query(func.sum(Income.amount))
+        .filter(
+            extract('year', Income.date) == first_day_last_month.year,
+            extract('month', Income.date) == first_day_last_month.month,
+            Income.status == "paid"
+        )
+        .scalar() or 0
+    )
+    paid = Income.query.filter_by(status="paid").with_entities(db.func.sum(Income.amount)).scalar() or 0
+    pending_income = Income.query.filter_by(status="unpaid").with_entities(db.func.sum(Income.amount)).scalar() or 0
+    overdue_income = Income.query.filter_by(status="overdue").with_entities(db.func.sum(Income.amount)).scalar() or 0   
+    percentage = get_percentage_monthly_income(last_month_income, this_month_income)  # call the function to get percentage change
+    monthly_data = monthly_payments(Income.date,Income.amount,Income.status)
+    
+    return render_template("income.html", 
+                           projects=project, 
+                           incomes=income
+                           ,total_income=total_income,
+                           this_month_income=this_month_income,
+                            pending_income=pending_income,
+                            overdue_income=overdue_income,
+                            percentage=percentage,
+                            paid = paid    
+                            ,monthly_data=monthly_data
+                            )
+
+# =================================================================
+@app.route("/update-income/<int:income_id>", methods=["GET", "POST"])
+def update_income(income_id):
+    print("FORM RECEIVED:", request.form.to_dict())
+    income = Income.query.get_or_404(income_id)
+    projects = Project.query.all()
+    if request.method == "POST":
+        income.amount = request.form["amount"]
+        income.status = request.form["status"]
+        income.project_id = request.form["project"]
+        income.due_date = request.form["due_date"]
+
+        db.session.commit()
+        flash("Income updated successfully!", "success")
+        return redirect(url_for("income"))
+    return render_template("income.html", projects=projects, income=income)
+# ==================================================================
+@app.route("/delete-income/<int:income_id>", methods=["POST"])
+def delete_income(income_id):
+    income = Income.query.get_or_404(income_id)
+    db.session.delete(income)
+    db.session.commit()
+    flash("Income deleted successfully!", "danger")
+    return redirect(url_for("income"))
+
+
 
 @app.route("/vision")
 def vision():
