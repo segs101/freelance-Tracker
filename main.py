@@ -8,8 +8,6 @@ from dateutil.relativedelta import relativedelta
 
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "gugugaga618$$"
-app.debug = True
 
 ##CREATE DATABASE
 class Base(DeclarativeBase):
@@ -101,11 +99,51 @@ def monthly_payments(date, amount, status):
     ]
     return results
 
+def total_income1(amount, status):
+    this_month_income = (
+    db.session.query(func.sum(amount))
+    .filter(
+        status.in_(["paid", "partially paid"]) 
+      
+    ).scalar()or 0)
+    return this_month_income
+
+def this_month_income1(amount, status):
+    this_month_income = (
+        db.session.query(func.sum(amount))
+        .filter(
+            func.strftime("%Y-%m", Income.date) == today.strftime("%Y-%m"),
+            status.in_(["paid", "partially paid"])
+        )
+        .scalar() or 0
+    )
+    return this_month_income
+
+def last_month_income1(amount, status, date):
+    last_month_income = (
+        db.session.query(func.sum(amount))
+        .filter(
+            extract('year', date) == first_day_last_month.year,
+            extract('month', date) == first_day_last_month.month,
+            status == "paid"
+        )
+        .scalar() or 0
+    )
+    return last_month_income
 
 
 @app.route("/")
 def index():
-    return render_template("dashboard.html")
+    projects = Project.query.count()
+    task = Task.query.count()
+    ongoing_task =Task.query.filter_by(status="in-progress").count()|0
+    this_month = this_month_income1(Income.amount, Income.status)
+    ongoing_projects = Project.query.filter_by(status="in-progress").count()
+    last_months = last_month_income1(Income.amount, Income.status, Income.date)
+    percentage = get_percentage_monthly_income(last_months,this_month)
+    monthly_datas = monthly_payments(Income.date,Income.amount,Income.status)
+
+    return render_template("dashboard.html", projects=projects,tasks=task,this_month_income=this_month,     pending_task=ongoing_task,percentage=percentage,monthly_data=monthly_datas,ongoing_projects=ongoing_projects)
 
 @app.route("/projects", methods=["GET","POST"])
 def project():
@@ -147,7 +185,6 @@ def project():
 # =============================================================================
 @app.route("/update-project/<int:project_id>", methods=["GET", "POST"])
 def update_project(project_id):
-    print("FORM RECEIVED:", request.form.to_dict())
     project = Project.query.get_or_404(project_id)   # get the project or 404
     
     if request.method == "POST":
@@ -213,7 +250,6 @@ def task():
 # ===============================================================
 @app.route("/update-task/<int:task_id>", methods=["GET", "POST"])
 def update_task(task_id):
-    print("FORM RECEIVED:", request.form.to_dict())
     task = Task.query.get_or_404(task_id)
     projects = Project.query.all()
     if request.method == "POST":
@@ -261,29 +297,10 @@ def income():
     project = Project.query.all()
      # Example values
     
-    total_income = (
-        db.session.query(func.sum(Income.amount))
-        .filter(Income.status.in_(["paid", "partially paid"]))
-        .scalar()
-        or 0
-    )
-    this_month_income = (
-    db.session.query(func.sum(Income.amount))
-    .filter(
-        Income.date.like(f"{today.year}-{today.month:02}-%"),
-        Income.status.in_(["paid", "partially paid"]) 
-      
-    ).scalar()or 0)
+    total_income = total_income1(Income.amount,Income.status)
+    this_month_income = this_month_income1(Income.amount, Income.status)
     # Last month income
-    last_month_income = (
-        db.session.query(func.sum(Income.amount))
-        .filter(
-            extract('year', Income.date) == first_day_last_month.year,
-            extract('month', Income.date) == first_day_last_month.month,
-            Income.status == "paid"
-        )
-        .scalar() or 0
-    )
+    last_month_income = last_month_income1(Income.amount, Income.status, Income.date)
     paid = Income.query.filter_by(status="paid").with_entities(db.func.sum(Income.amount)).scalar() or 0
     pending_income = Income.query.filter_by(status="unpaid").with_entities(db.func.sum(Income.amount)).scalar() or 0
     overdue_income = Income.query.filter_by(status="overdue").with_entities(db.func.sum(Income.amount)).scalar() or 0   
@@ -291,21 +308,20 @@ def income():
     monthly_data = monthly_payments(Income.date,Income.amount,Income.status)
     
     return render_template("income.html", 
-                           projects=project, 
-                           incomes=income
-                           ,total_income=total_income,
-                           this_month_income=this_month_income,
-                            pending_income=pending_income,
-                            overdue_income=overdue_income,
-                            percentage=percentage,
-                            paid = paid    
-                            ,monthly_data=monthly_data
-                            )
+        projects=project,
+        incomes=income
+        ,total_income=total_income,
+        this_month_income=this_month_income,
+        pending_income=pending_income,
+        overdue_income=overdue_income,
+        percentage=percentage,
+        paid = paid    
+        ,monthly_data=monthly_data
+        )
 
 # =================================================================
 @app.route("/update-income/<int:income_id>", methods=["GET", "POST"])
 def update_income(income_id):
-    print("FORM RECEIVED:", request.form.to_dict())
     income = Income.query.get_or_404(income_id)
     projects = Project.query.all()
     if request.method == "POST":
