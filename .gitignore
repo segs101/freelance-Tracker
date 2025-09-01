@@ -1,3 +1,17 @@
-\env
-\instance
-\__pycache__
+# Ignore virtual env
+env/
+venv/
+
+# Ignore python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore database if using SQLite
+instance/
+*.sqlite3
+*.db
+
+# Ignore IDE/editor configs
+.vscode/
+.idea/
