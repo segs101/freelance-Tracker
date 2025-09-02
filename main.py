@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template,request, redirect, url_for,flash
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
@@ -15,7 +16,7 @@ app.debug = True
 class Base(DeclarativeBase):
     pass
 
-app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///project.db"
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL") or "sqlite:///project_tracker.db"
 
 # Create the extension
 db = SQLAlchemy(model_class=Base)
