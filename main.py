@@ -8,6 +8,8 @@ from dateutil.relativedelta import relativedelta
 
 
 app = Flask(__name__)
+app.config["SECRET_KEY"] = "gugugaga618$$"
+app.debug = True
 
 ##CREATE DATABASE
 class Base(DeclarativeBase):
